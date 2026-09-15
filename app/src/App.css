@@ -1,114 +1,233 @@
+/* Kindo's house style: flat panels, 2px casing lines, gold digital side,
+   cream paper for the "real" thing — here, your name card. */
+
 .page {
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 18px 20px 48px;
-  min-height: 100svh;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  max-width: 480px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 0 40px;
 }
 
 .top {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 4px 0 8px;
+  padding: 18px 28px 14px;
+  background: var(--ink);
+  box-shadow: 0 10px 22px -14px rgba(0, 0, 0, 0.8);
 }
 
 .wordmark {
-  font-family: var(--mono);
-  font-weight: 700;
-  font-size: 18px;
-  letter-spacing: -0.02em;
-  color: var(--text);
+  font-family: var(--logo);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gold);
   text-decoration: none;
-}
-
-.wordmark::before {
-  content: '@';
-  color: var(--accent);
 }
 
 .count {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--mist);
+}
+
+.header {
+  padding: 28px 28px 8px;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin: 0 0 14px;
 }
 
 .hero {
-  margin: 10px 0 4px;
-  font-size: 34px;
-  line-height: 1.08;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-family: var(--serif);
+  font-size: 30px;
+  line-height: 1.12;
+  letter-spacing: -0.3px;
+  font-weight: 800;
+  color: var(--white);
+  margin: 0;
 }
+
+.hero .tag {
+  font-family: var(--serif);
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.subtitle {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--mist);
+  margin: 14px 0 0;
+  max-width: 34ch;
+}
+
+/* ---------- panels ---------- */
 
 .card {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  margin: 20px 28px 0;
   padding: 18px;
   background: var(--panel);
   border: 2px solid var(--line);
-  border-radius: 16px;
+  border-radius: 12px;
 }
 
 .card--done {
-  border-color: var(--ok);
+  border-color: var(--gold);
 }
 
 .label {
   font-family: var(--mono);
   font-size: 10.5px;
-  letter-spacing: 0.12em;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--mist);
 }
 
 .hint {
   margin: 0;
   font-size: 13px;
-  line-height: 1.45;
-  color: var(--muted);
+  line-height: 1.5;
+  color: var(--mist);
 }
 
 .tag {
   font-family: var(--mono);
   font-weight: 700;
-  color: var(--accent);
-}
-
-.tag--big {
-  font-size: 22px;
+  color: var(--gold);
 }
 
 .addr {
   font-family: var(--mono);
-  font-size: 11.5px;
-  letter-spacing: 0.02em;
-  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  color: var(--mist);
   word-break: break-all;
 }
 
-.me {
+/* ---------- the name card: cream paper, like a printed pass ---------- */
+
+.namecard {
+  position: relative;
+  margin: 20px 28px 0;
+  padding: 18px 18px 20px;
+  background: var(--paper);
+  color: var(--paper-ink);
+  border: 2px solid var(--ink-deep);
+  border-radius: 4px;
+  box-shadow: 8px 10px 0 rgba(18, 20, 46, 0.35);
+  font-family: var(--mono);
+}
+
+.namecard-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--paper-line);
+}
+
+.namecard-brand {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+
+.namecard-sub {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--paper-line);
+}
+
+.namecard-body {
   display: flex;
   align-items: center;
   gap: 14px;
 }
 
-.me--target {
-  padding: 12px;
-  background: var(--panel-2);
-  border-radius: 12px;
+.namecard .identicon {
+  flex-shrink: 0;
+  padding: 4px;
+  background: #fff;
+  border: 1.5px solid var(--paper-line);
+  border-radius: 6px;
 }
 
-.me-text {
+.namecard-text {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
+
+.namecard-tag {
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.3px;
+  color: var(--paper-ink);
+}
+
+.namecard-tag::before {
+  content: '@';
+  color: var(--stamp);
+}
+
+.namecard-addr {
+  font-size: 10.5px;
+  letter-spacing: 0.3px;
+  color: #5b5a55;
+  word-break: break-all;
+}
+
+.namecard-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--paper-line);
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #5b5a55;
+}
+
+.namecard-copy {
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--stamp);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* ---------- identicon ---------- */
 
 .identicon {
   display: inline-flex;
@@ -121,78 +240,79 @@
   height: 100%;
 }
 
-.share {
+.me {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-top: 12px;
-  border-top: 2px dashed var(--line);
+  align-items: center;
+  gap: 14px;
 }
 
-.copy {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--panel-2);
+.me--target {
+  padding: 12px;
+  background: var(--ink-deep);
   border: 2px solid var(--line);
   border-radius: 10px;
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 12.5px;
-  text-align: left;
-  cursor: pointer;
-  word-break: break-all;
 }
 
-.copy span {
-  flex-shrink: 0;
-  color: var(--accent);
-}
-
-.claim {
+.me-text {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding-top: 12px;
-  border-top: 2px dashed var(--line);
+  gap: 3px;
+  min-width: 0;
 }
 
-.claim-row {
+/* ---------- fields ---------- */
+
+.field-row {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 14px;
-  background: var(--bg);
+  background: var(--ink-deep);
   border: 2px solid var(--line);
-  border-radius: 12px;
+  border-radius: 10px;
 }
 
-.claim-row:focus-within {
-  border-color: var(--accent);
+.field-row:focus-within {
+  border-color: var(--gold);
 }
 
 .at {
   font-family: var(--mono);
   font-weight: 700;
   font-size: 20px;
-  color: var(--accent);
+  color: var(--gold);
 }
 
-.claim-input {
+.field-input {
   flex: 1;
   min-width: 0;
-  padding: 14px 0;
+  padding: 13px 0;
   background: transparent;
   border: none;
   outline: none;
-  color: var(--text);
+  color: var(--white);
   font-family: var(--mono);
-  font-size: 18px;
+  font-size: 17px;
 }
 
-.claim-input::placeholder {
-  color: var(--muted);
+.field-input::placeholder {
+  color: var(--mist);
+}
+
+.field-input:disabled {
+  opacity: 0.4;
+}
+
+.amount {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.unit {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+  color: var(--mist);
 }
 
 .check {
@@ -206,80 +326,63 @@
 }
 
 .check--bad {
-  color: var(--bad);
+  color: var(--stamp);
 }
 
-.primary,
-.secondary {
+/* ---------- buttons: Kindo's physical key ---------- */
+
+.cta {
   display: block;
   width: 100%;
-  padding: 15px 18px;
-  border-radius: 12px;
+  font: inherit;
   font-weight: 700;
   font-size: 16px;
+  padding: 15px 30px;
+  border-radius: 5px;
+  border: 2px solid var(--ink-deep);
+  background: var(--gold);
+  color: var(--ink-deep);
   text-align: center;
   text-decoration: none;
   cursor: pointer;
+  box-shadow: 4px 4px 0 var(--ink-deep);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
 }
 
-.primary {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border: 2px solid var(--accent);
+.cta:active:not(:disabled) {
+  background: var(--gold-bright);
+  transform: translate(4px, 4px);
+  box-shadow: 0 0 0 var(--ink-deep);
 }
 
-.primary:disabled {
-  opacity: 0.4;
+.cta:disabled {
+  opacity: 0.45;
   cursor: default;
 }
 
-.secondary {
-  background: transparent;
-  color: var(--text);
-  border: 2px solid var(--line);
-}
-
-.amount-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  background: var(--bg);
-  border: 2px solid var(--line);
-  border-radius: 12px;
-}
-
-.amount-row:focus-within {
-  border-color: var(--accent);
-}
-
-.amount {
-  flex: 1;
-  min-width: 0;
-  padding: 14px 0;
-  background: transparent;
-  border: none;
-  outline: none;
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 26px;
+.text-button {
+  font: inherit;
+  font-size: 14px;
   font-weight: 700;
+  color: var(--mist);
+  background: none;
+  border: none;
+  padding: 8px 0;
+  cursor: pointer;
+  text-decoration: none;
 }
 
-.amount:disabled {
-  opacity: 0.4;
-}
-
-.unit {
-  font-family: var(--mono);
-  font-size: 12px;
-  letter-spacing: 0.1em;
-  color: var(--muted);
+.divider {
+  margin: 0;
+  border: none;
+  border-top: 2px dashed var(--line);
 }
 
 .done-line {
   margin: 0;
-  font-size: 20px;
+  font-family: var(--serif);
+  font-size: 24px;
+  font-weight: 800;
 }
 
 .foot {
@@ -287,8 +390,15 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding-top: 24px;
+  padding: 36px 28px 0;
   font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
+  font-size: 10.5px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--mist);
+}
+
+.foot a {
+  color: var(--gold);
+  text-decoration: none;
 }
