@@ -1,0 +1,294 @@
+.page {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 18px 20px 48px;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 4px 0 8px;
+}
+
+.wordmark {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.wordmark::before {
+  content: '@';
+  color: var(--accent);
+}
+
+.count {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.hero {
+  margin: 10px 0 4px;
+  font-size: 34px;
+  line-height: 1.08;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: 16px;
+}
+
+.card--done {
+  border-color: var(--ok);
+}
+
+.label {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.tag {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.tag--big {
+  font-size: 22px;
+}
+
+.addr {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.me {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.me--target {
+  padding: 12px;
+  background: var(--panel-2);
+  border-radius: 12px;
+}
+
+.me-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.identicon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.identicon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.share {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 2px dashed var(--line);
+}
+
+.copy {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--panel-2);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  word-break: break-all;
+}
+
+.copy span {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.claim {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 2px dashed var(--line);
+}
+
+.claim-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  background: var(--bg);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+}
+
+.claim-row:focus-within {
+  border-color: var(--accent);
+}
+
+.at {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 20px;
+  color: var(--accent);
+}
+
+.claim-input {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 18px;
+}
+
+.claim-input::placeholder {
+  color: var(--muted);
+}
+
+.check {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.check--ok {
+  color: var(--ok);
+}
+
+.check--bad {
+  color: var(--bad);
+}
+
+.primary,
+.secondary {
+  display: block;
+  width: 100%;
+  padding: 15px 18px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 16px;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border: 2px solid var(--accent);
+}
+
+.primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.secondary {
+  background: transparent;
+  color: var(--text);
+  border: 2px solid var(--line);
+}
+
+.amount-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  background: var(--bg);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+}
+
+.amount-row:focus-within {
+  border-color: var(--accent);
+}
+
+.amount {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.amount:disabled {
+  opacity: 0.4;
+}
+
+.unit {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.done-line {
+  margin: 0;
+  font-size: 20px;
+}
+
+.foot {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 24px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+}

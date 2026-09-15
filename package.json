@@ -1,0 +1,11 @@
+{
+  "name": "nimtag",
+  "private": true,
+  "version": "1.0.0",
+  "license": "MIT",
+  "engines": { "node": ">=22.12.0" },
+  "scripts": {
+    "build": "cd app && npm ci && npm run build && cd ../server && npm ci",
+    "start": "node server/src/server.js"
+  }
+}

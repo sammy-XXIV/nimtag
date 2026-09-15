@@ -1,0 +1,5 @@
+node_modules/
+dist/
+server/names.json
+server/.env
+.env
