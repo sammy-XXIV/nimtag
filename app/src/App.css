@@ -494,3 +494,15 @@
 .chip .identicon img {
   border-radius: 50%;
 }
+
+/* Account chooser on the claim step (only when the wallet exposes several). */
+.accounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip--on {
+  outline: 2px solid var(--gold);
+  outline-offset: 0;
+}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import Identicon from './Identicon'
 import { api, claimMessage } from './api'
-import { fmtNim, getAddress, insideNimiqPay, locale, sendNim, shortAddress, signClaim } from './wallet'
+import { fmtNim, getAddresses, insideNimiqPay, locale, sendNim, shortAddress, signClaim } from './wallet'
 
 const OPEN_LINK = `https://nimpay.app/miniapps/open/${window.location.host}`
 const SAMPLE_ADDRESS = 'NQ48 VUP6 42E2 X803 TQAU LX1V 1UJV LUBF RUX7'
@@ -44,7 +44,7 @@ function NameCard({ tag, address, link, onCopy, sub = 'NIMTAG · NAME' }) {
 
 // ---------- your tag: show it, or claim one ----------
 
-function ClaimCard({ address, onClaimed }) {
+function ClaimCard({ address, accounts = [], onPickAccount, onClaimed }) {
   const [input, setInput] = useState('')
   const [check, setCheck] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -86,6 +86,21 @@ function ClaimCard({ address, onClaimed }) {
             <span className="addr">{shortAddress(address)}</span>
           </div>
         </div>
+        {accounts.length > 1 && (
+          <div className="accounts">
+            {accounts.map((a) => (
+              <button
+                type="button"
+                key={a}
+                className={`chip${a === address ? ' chip--on' : ''}`}
+                onClick={() => onPickAccount(a)}
+              >
+                <Identicon address={a} size={22} />
+                <span>{shortAddress(a)}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <span className="label">Pick your name</span>
         <div className="field-row">
           <span className="at">@</span>
@@ -393,11 +408,15 @@ function App() {
   const [sendTo, setSendTo] = useState((params.get('to') || '').toLowerCase())
   const sendAmount = params.get('amount') || ''
   const [refreshKey, setRefreshKey] = useState(0)
+  const [accounts, setAccounts] = useState([])
   const [address, setAddress] = useState(null)
   const [myTag, setMyTag] = useState(null)
   const [stats, setStats] = useState(null)
   const [copied, setCopied] = useState(false)
   const [balance, setBalance] = useState(null)
+  // First screen inside the wallet: what this is, then "Get started".
+  // Once a name exists there's nothing to introduce, so it's skipped.
+  const [started, setStarted] = useState(() => new URLSearchParams(window.location.search).has('to'))
 
   // Refresh the balance whenever the wallet is known and after a send.
   function refreshBalance(a) {
@@ -413,16 +432,27 @@ function App() {
 
   useEffect(() => {
     api.stats().then(setStats).catch(() => {})
-    getAddress().then(async (a) => {
-      if (!a) return
-      setAddress(a)
-      refreshBalance(a)
-      try {
-        const { tag } = await api.tagFor(a)
-        setMyTag(tag)
-      } catch {
-        /* no tag yet */
+    getAddresses().then(async (list) => {
+      if (!list.length) return
+      setAccounts(list)
+      // Prefer an account that already has a name; otherwise the first.
+      let chosen = list[0]
+      let found = null
+      for (const a of list) {
+        try {
+          const { tag } = await api.tagFor(a)
+          if (tag) {
+            chosen = a
+            found = tag
+            break
+          }
+        } catch {
+          /* keep looking */
+        }
       }
+      setAddress(chosen)
+      setMyTag(found)
+      refreshBalance(chosen)
     })
   }, [])
 
@@ -456,15 +486,34 @@ function App() {
             )}
             {!myTag && (
               <p className="subtitle">
-                {address
-                  ? 'First, claim yours. It takes ten seconds and costs nothing — your wallet just signs to prove it’s you.'
+                {address && started
+                  ? 'Pick yours. It takes ten seconds and costs nothing — your wallet just signs to prove it’s you.'
                   : 'Claim your name once. From then on, anyone with Nimiq Pay can pay you by typing it.'}
               </p>
             )}
           </div>
 
-          {address && !myTag ? (
-            <ClaimCard address={address} onClaimed={setMyTag} />
+          {address && !myTag && !started ? (
+            <>
+              <NameCard tag="adam" address={SAMPLE_ADDRESS} sub="EXAMPLE" />
+              <div className="card">
+                <p className="hint">
+                  Pick a name once. Your wallet signs to prove it's yours — free, no transaction. From then on
+                  anyone can pay you by typing <span className="tag">@yourname</span>, and you can pay anyone the same way.
+                </p>
+                <button type="button" className="cta" onClick={() => setStarted(true)}>Get started &rarr;</button>
+              </div>
+            </>
+          ) : address && !myTag ? (
+            <ClaimCard
+              address={address}
+              accounts={accounts}
+              onPickAccount={(a) => {
+                setAddress(a)
+                refreshBalance(a)
+              }}
+              onClaimed={setMyTag}
+            />
           ) : address ? (
             <>
               <NameCard tag={myTag} address={address} link={`${window.location.origin}/@${myTag}`} onCopy={copyLink} sub={copied ? 'LINK COPIED' : 'YOUR NAME'} />

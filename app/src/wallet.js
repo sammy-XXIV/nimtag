@@ -29,19 +29,25 @@ export function insideNimiqPay() {
   return MOCK_WALLET || (typeof window !== 'undefined' && Boolean(window.nimiqPay || window.nimiq))
 }
 
-let accountPromise = null
-export function getAddress() {
-  if (MOCK_WALLET) return Promise.resolve(MOCK_ADDRESS)
-  if (!accountPromise) {
-    accountPromise = getNimiq()
+// All accounts the wallet exposes (Nimiq Pay can hold several); the app
+// lets the user pick which one a name belongs to.
+let accountsPromise = null
+export function getAddresses() {
+  if (MOCK_WALLET) return Promise.resolve([MOCK_ADDRESS])
+  if (!accountsPromise) {
+    accountsPromise = getNimiq()
       .then((n) => n.listAccounts())
-      .then((r) => (Array.isArray(r) && r[0]) || null)
+      .then((r) => (Array.isArray(r) ? r.filter(Boolean) : []))
       .catch(() => {
-        accountPromise = null
-        return null
+        accountsPromise = null
+        return []
       })
   }
-  return accountPromise
+  return accountsPromise
+}
+
+export function getAddress() {
+  return getAddresses().then((list) => list[0] || null)
 }
 
 function unwrap(result, fallback) {
