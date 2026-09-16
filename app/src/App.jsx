@@ -396,6 +396,27 @@ function Profile({ tag, inside, onSend }) {
   )
 }
 
+// ---------- live count ----------
+
+function UsageLine({ stats }) {
+  if (!stats) return null
+  const n = stats.tags
+  return (
+    <p className="usage-line">
+      {n === 0 ? (
+        <span>No names yet — yours would be the first.</span>
+      ) : (
+        <>
+          <span className="usage-n">{n.toLocaleString(locale())}</span>
+          <span>{n === 1 ? 'name claimed' : 'names claimed'}</span>
+          <span className="usage-live" aria-hidden="true" />
+          <span>live</span>
+        </>
+      )}
+    </p>
+  )
+}
+
 // ---------- app ----------
 
 function App() {
@@ -431,7 +452,13 @@ function App() {
   }
 
   useEffect(() => {
-    api.stats().then(setStats).catch(() => {})
+    const load = () => api.stats().then(setStats).catch(() => {})
+    load()
+    const t = setInterval(load, 20000)
+    return () => clearInterval(t)
+  }, [])
+
+  useEffect(() => {
     getAddresses().then(async (list) => {
       if (!list.length) return
       setAccounts(list)
@@ -502,6 +529,7 @@ function App() {
                   anyone can pay you by typing <span className="tag">@yourname</span>, and you can pay anyone the same way.
                 </p>
                 <button type="button" className="cta" onClick={() => setStarted(true)}>Get started &rarr;</button>
+                <UsageLine stats={stats} />
               </div>
             </>
           ) : address && !myTag ? (
@@ -539,6 +567,7 @@ function App() {
               <div className="card">
                 <p className="hint">Nimtag lives inside Nimiq Pay. Open it there to claim your name and send NIM by name.</p>
                 <a className="cta" href={OPEN_LINK}>Open in Nimiq Pay</a>
+                <UsageLine stats={stats} />
               </div>
             </>
           )}
