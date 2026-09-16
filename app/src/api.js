@@ -3,6 +3,7 @@ async function json(res) {
   if (!res.ok) {
     const e = new Error(body.message || body.error || `HTTP ${res.status}`)
     e.code = body.error
+    e.signer = body.signer
     throw e
   }
   return body

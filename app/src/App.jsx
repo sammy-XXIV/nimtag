@@ -44,11 +44,12 @@ function NameCard({ tag, address, link, onCopy, sub = 'NIMTAG · NAME' }) {
 
 // ---------- your tag: show it, or claim one ----------
 
-function ClaimCard({ address, accounts = [], onPickAccount, onClaimed }) {
+function ClaimCard({ address, onPickAccount, onClaimed }) {
   const [input, setInput] = useState('')
   const [check, setCheck] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [signer, setSigner] = useState(null) // the account Nimiq Pay actually signed with, if different
   const wanted = useDebounced(input.trim().replace(/^@/, '').toLowerCase(), 300)
 
   useEffect(() => {
@@ -60,17 +61,24 @@ function ClaimCard({ address, accounts = [], onPickAccount, onClaimed }) {
     }
   }, [wanted])
 
-  async function claim() {
+  async function claim(forAddress = address) {
     setBusy(true)
     setError('')
+    setSigner(null)
     try {
       const at = new Date().toISOString()
-      const { publicKey, signature } = await signClaim(claimMessage(wanted, address, at))
-      await api.claim({ tag: wanted, address, at, publicKey, signature })
+      const { publicKey, signature } = await signClaim(claimMessage(wanted, forAddress, at))
+      await api.claim({ tag: wanted, address: forAddress, at, publicKey, signature })
+      if (forAddress !== address) onPickAccount?.(forAddress)
       onClaimed(wanted)
       setInput('')
     } catch (e) {
-      setError(e.type === 'PermissionDeniedError' ? 'Cancelled.' : e.message || 'Could not claim.')
+      if (e.code === 'signer_mismatch' && e.signer) {
+        setSigner(e.signer)
+        setError('')
+      } else {
+        setError(e.type === 'PermissionDeniedError' ? 'Cancelled.' : e.message || 'Could not claim.')
+      }
     } finally {
       setBusy(false)
     }
@@ -86,21 +94,6 @@ function ClaimCard({ address, accounts = [], onPickAccount, onClaimed }) {
             <span className="addr">{shortAddress(address)}</span>
           </div>
         </div>
-        {accounts.length > 1 && (
-          <div className="accounts">
-            {accounts.map((a) => (
-              <button
-                type="button"
-                key={a}
-                className={`chip${a === address ? ' chip--on' : ''}`}
-                onClick={() => onPickAccount(a)}
-              >
-                <Identicon address={a} size={22} />
-                <span>{shortAddress(a)}</span>
-              </button>
-            ))}
-          </div>
-        )}
         <span className="label">Pick your name</span>
         <div className="field-row">
           <span className="at">@</span>
@@ -121,9 +114,27 @@ function ClaimCard({ address, accounts = [], onPickAccount, onClaimed }) {
           </p>
         )}
         {error && <p className="check check--bad">{error}</p>}
-        <button type="button" className="cta" disabled={!wanted || !check?.ok || busy} onClick={claim}>
-          {busy ? 'Waiting for your signature…' : `Claim @${wanted || '…'}`}
-        </button>
+        {signer && (
+          <div className="me me--target">
+            <Identicon address={signer} size={40} />
+            <div className="me-text">
+              <span className="check">Nimiq Pay signed with this account, not the one above.</span>
+              <span className="addr">{shortAddress(signer)}</span>
+            </div>
+          </div>
+        )}
+        {signer ? (
+          <button type="button" className="cta" disabled={busy} onClick={() => claim(signer)}>
+            {busy ? 'Waiting for your signature…' : `Claim @${wanted} for ${shortAddress(signer)}`}
+          </button>
+        ) : (
+          <button type="button" className="cta" disabled={!wanted || !check?.ok || busy} onClick={() => claim()}>
+            {busy ? 'Waiting for your signature…' : `Claim @${wanted || '…'}`}
+          </button>
+        )}
+        {signer && (
+          <p className="hint">Want it on a different account? Switch accounts inside Nimiq Pay first, then claim again.</p>
+        )}
         <p className="hint">Free, and permanent — one name per wallet, no changing it later. Your wallet signs a message to prove it's yours; nothing is sent.</p>
       </section>
     </>
@@ -429,7 +440,6 @@ function App() {
   const [sendTo, setSendTo] = useState((params.get('to') || '').toLowerCase())
   const sendAmount = params.get('amount') || ''
   const [refreshKey, setRefreshKey] = useState(0)
-  const [accounts, setAccounts] = useState([])
   const [address, setAddress] = useState(null)
   const [myTag, setMyTag] = useState(null)
   const [stats, setStats] = useState(null)
@@ -461,7 +471,6 @@ function App() {
   useEffect(() => {
     getAddresses().then(async (list) => {
       if (!list.length) return
-      setAccounts(list)
       // Prefer an account that already has a name; otherwise the first.
       let chosen = list[0]
       let found = null
@@ -535,7 +544,6 @@ function App() {
           ) : address && !myTag ? (
             <ClaimCard
               address={address}
-              accounts={accounts}
               onPickAccount={(a) => {
                 setAddress(a)
                 refreshBalance(a)

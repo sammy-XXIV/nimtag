@@ -105,8 +105,17 @@ app.post('/api/claim', async (req, res) => {
   // Never set in production.
   const dev = process.env.DEV_MODE === 'true' && publicKey === 'dev' && signature === 'dev'
   const proven = dev ? address : recoverAddress({ message: claimMessage(tag, address, at), publicKey, signature })
-  if (!proven || proven !== address) {
+  if (!proven) {
     return res.status(401).json({ error: 'bad_signature', message: 'Signature does not match this wallet.' })
+  }
+  if (proven !== address) {
+    // Nimiq Pay signs with whichever account is active in the app, not the
+    // one the mini app named. Tell the client which account really signed.
+    return res.status(409).json({
+      error: 'signer_mismatch',
+      signer: proven,
+      message: `Nimiq Pay signed with ${proven.slice(0, 9)}…, not this account.`,
+    })
   }
   if (!dev) {
     let nim
