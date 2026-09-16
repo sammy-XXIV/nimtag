@@ -547,3 +547,19 @@
 @keyframes pulse {
   to { box-shadow: 0 0 0 8px rgba(88, 214, 141, 0); }
 }
+
+.feed-nim {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--mist);
+}
+
+.feed-nim--in {
+  color: var(--gold);
+}
+
+span.feed-text {
+  cursor: default;
+}

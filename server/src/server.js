@@ -59,20 +59,41 @@ async function balanceNim(address) {
 }
 
 // Nimiq Pay hands mini apps a receive address and keeps the spendable balance
-// on an internal account it tops up from there automatically. So the true
-// balance is the receive address plus wherever it forwards to — found from
-// the chain: an outgoing transfer that mirrors an incoming one shortly after.
-async function linkedAccount(address) {
-  const txs = await rpc('getTransactionsByAddress', [address, 30, null])
-  const list = (Array.isArray(txs) ? txs : []).slice().sort((a, b) => a.timestamp - b.timestamp)
-  let linked = null
-  for (let i = 1; i < list.length; i++) {
-    const prev = list[i - 1]
-    const t = list[i]
-    const sweep = t.from === address && prev.to === address && t.value === prev.value && t.timestamp - prev.timestamp < 30 * 60 * 1000
-    if (sweep) linked = t.to // latest one wins
+// elsewhere: whatever lands on the receive address is forwarded, and after
+// activity the balance is moved on again to a fresh internal address. So the
+// wallet is really a chain of accounts. Follow it: from each account, the
+// latest outgoing transfer with no memo that moves (nearly) everything it
+// held, shortly after money came in, is an internal move — hop to its
+// destination. Stop where there's no further move. Returns every account in
+// the chain, receive address first.
+async function walletAccounts(address) {
+  const chain = [address]
+  let current = address
+  for (let hop = 0; hop < 10; hop++) {
+    const txs = await rpc('getTransactionsByAddress', [current, 30, null]).catch(() => [])
+    const list = (Array.isArray(txs) ? txs : []).slice().sort((a, b) => a.timestamp - b.timestamp)
+    let next = null
+    for (let i = 0; i < list.length; i++) {
+      const t = list[i]
+      if (t.from !== current || decodeMemo(t.recipientData)) continue
+      // everything that came in before this, minus what already left
+      let held = 0
+      for (let j = 0; j < i; j++) held += list[j].to === current ? Number(list[j].value) : -Number(list[j].value)
+      const lastIn = [...list.slice(0, i)].reverse().find((x) => x.to === current)
+      const soonAfterIn = lastIn && t.timestamp - lastIn.timestamp < 60 * 60 * 1000
+      if (held > 0 && Number(t.value) >= held * 0.9 && soonAfterIn && !chain.includes(t.to)) next = t.to
+    }
+    if (!next) break
+    chain.push(next)
+    current = next
   }
-  return linked
+  return chain
+}
+
+async function walletBalance(address) {
+  const accounts = await walletAccounts(address)
+  const balances = await Promise.all(accounts.map((a) => balanceNim(a).catch(() => 0)))
+  return { accounts, balances, nim: balances.reduce((s, b) => s + b, 0) }
 }
 
 app.use('/api/claim', rateLimit({ windowMs: 60000, max: 10 }))
@@ -139,8 +160,7 @@ app.post('/api/claim', async (req, res) => {
     try {
       // Receive address plus the account Nimiq Pay forwards it to — the
       // receive address alone is ~0 minutes after anything lands on it.
-      const linked = await linkedAccount(address).catch(() => null)
-      nim = (await balanceNim(address)) + (linked ? await balanceNim(linked).catch(() => 0) : 0)
+      nim = (await walletBalance(address)).nim
     } catch {
       return res.status(502).json({ error: 'chain_unavailable', message: 'Could not check the wallet right now — try again.' })
     }
@@ -178,20 +198,35 @@ app.get('/api/activity/:address', async (req, res) => {
   const hit = activityCache.get(address)
   if (hit && Date.now() - hit.at < 15000) return res.json(hit.value)
   try {
-    const txs = await rpc('getTransactionsByAddress', [address, 40, null])
-    const items = (Array.isArray(txs) ? txs : []).map((t) => {
-      const incoming = t.to === address
-      const other = incoming ? t.from : t.to
-      return {
-        hash: t.hash,
-        direction: incoming ? 'in' : 'out',
-        address: other,
-        tag: names.tagFor(other),
-        nim: Number(t.value || 0) / 100000,
-        memo: decodeMemo(t.recipientData),
-        at: Number(t.timestamp || 0),
-      }
-    })
+    // Sends leave from the account Nimiq Pay forwards to, receipts land on
+    // the receive address — so read both and treat them as one wallet.
+    const mine = new Set(await walletAccounts(address))
+    const lists = await Promise.all([...mine].map((a) => rpc('getTransactionsByAddress', [a, 40, null]).catch(() => [])))
+    const seen = new Set()
+    const all = lists.flat().filter((t) => t && !seen.has(t.hash) && seen.add(t.hash))
+    // Internal shuffles: an address we both sent to and received from, with
+    // no memo either way, is Nimiq Pay moving our own balance around.
+    const sentTo = new Set(all.filter((t) => mine.has(t.from) && !decodeMemo(t.recipientData)).map((t) => t.to))
+    const gotFrom = new Set(all.filter((t) => mine.has(t.to) && !decodeMemo(t.recipientData)).map((t) => t.from))
+    const internal = new Set([...mine, ...[...sentTo].filter((a) => gotFrom.has(a))])
+    const items = all
+      .filter((t) => !(internal.has(t.from) && internal.has(t.to)))
+      .map((t) => {
+        const incoming = mine.has(t.to)
+        const other = incoming ? t.from : t.to
+        const memo = decodeMemo(t.recipientData)
+        return {
+          hash: t.hash,
+          direction: incoming ? 'in' : 'out',
+          address: other,
+          tag: names.tagFor(other),
+          nim: Number(t.value || 0) / 100000,
+          memo,
+          byName: /^@[a-z0-9_]+ → @[a-z0-9_]+$/.test(memo) || /^→ @[a-z0-9_]+$/.test(memo),
+          at: Number(t.timestamp || 0),
+        }
+      })
+      .sort((a, b) => b.at - a.at)
     const value = { address, items }
     if (activityCache.size > 500) activityCache.clear()
     activityCache.set(address, { at: Date.now(), value })
@@ -211,9 +246,8 @@ app.get('/api/balance/:address', async (req, res) => {
   if (!isAddress(req.params.address)) return res.status(400).json({ error: 'bad_address' })
   const address = canonical(req.params.address)
   try {
-    const [own, linked] = await Promise.all([balanceNim(address), linkedAccount(address).catch(() => null)])
-    const linkedNim = linked ? await balanceNim(linked).catch(() => 0) : 0
-    res.json({ address, nim: own + linkedNim, own, linked, linkedNim })
+    const w = await walletBalance(address)
+    res.json({ address, nim: w.nim, accounts: w.accounts, balances: w.balances })
   } catch (err) {
     res.status(502).json({ error: 'balance_failed', message: err.message })
   }

@@ -316,6 +316,42 @@ function People({ address, refreshKey, onPick }) {
   )
 }
 
+// ---------- history: every payment made by name ----------
+
+function History({ address, refreshKey }) {
+  const [items, setItems] = useState(null)
+  useEffect(() => {
+    let stopped = false
+    api.activity(address).then((a) => !stopped && setItems(a.items.filter((t) => t.byName))).catch(() => !stopped && setItems([]))
+    return () => {
+      stopped = true
+    }
+  }, [address, refreshKey])
+  if (!items || !items.length) return null
+  return (
+    <section className="card">
+      <span className="label">History</span>
+      <ul className="feed">
+        {items.slice(0, 20).map((t) => (
+          <li className="feed-row" key={t.hash}>
+            <Identicon address={t.address} size={36} />
+            <span className="feed-text">
+              <span className="feed-line">
+                {t.direction === 'in' ? 'From ' : 'To '}
+                {t.tag ? <span className="tag">@{t.tag}</span> : <span className="addr">{shortAddress(t.address)}</span>}
+              </span>
+              <span className="feed-meta">{timeAgo(t.at)} · {t.memo}</span>
+            </span>
+            <span className={`feed-nim ${t.direction === 'in' ? 'feed-nim--in' : ''}`}>
+              {t.direction === 'in' ? '+' : '−'}{fmtNim(t.nim)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 // ---------- directory: who's here ----------
 
 function Directory({ me, onPick }) {
@@ -558,6 +594,7 @@ function App() {
                   setTimeout(() => refreshBalance(address), 4000)
                 }}
               />
+              <History address={address} refreshKey={refreshKey} />
               <People address={address} refreshKey={refreshKey} onPick={setSendTo} />
               <Directory me={myTag} onPick={setSendTo} />
               <RequestCard tag={myTag} />
