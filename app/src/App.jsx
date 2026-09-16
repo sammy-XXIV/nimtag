@@ -483,7 +483,23 @@ function App() {
     return m ? { profile: m[1].toLowerCase() } : {}
   }, [])
   const params = useMemo(() => new URLSearchParams(window.location.search), [])
-  const [sendTo, setSendTo] = useState((params.get('to') || '').toLowerCase())
+  const [sendTo, setSendToState] = useState(() => {
+    const fromUrl = (params.get('to') || '').toLowerCase()
+    if (fromUrl) return fromUrl
+    try {
+      return sessionStorage.getItem('nimtag.sendTo') || ''
+    } catch {
+      return ''
+    }
+  })
+  function setSendTo(t) {
+    setSendToState(t)
+    try {
+      sessionStorage.setItem('nimtag.sendTo', t || '')
+    } catch {
+      /* ignore */
+    }
+  }
   const sendAmount = params.get('amount') || ''
   const [refreshKey, setRefreshKey] = useState(0)
   const [address, setAddress] = useState(null)
@@ -492,7 +508,23 @@ function App() {
   const [copied, setCopied] = useState(false)
   // First screen inside the wallet: what this is, then "Get started".
   // Once a name exists there's nothing to introduce, so it's skipped.
-  const [started, setStarted] = useState(() => new URLSearchParams(window.location.search).has('to'))
+  const [started, setStartedState] = useState(() => {
+    try {
+      return sessionStorage.getItem('nimtag.started') === '1' || new URLSearchParams(window.location.search).has('to')
+    } catch {
+      return false
+    }
+  })
+  // Remember that the intro was passed, so a refresh lands back on the claim
+  // screen (or the card) instead of the landing.
+  function setStarted(v) {
+    setStartedState(v)
+    try {
+      sessionStorage.setItem('nimtag.started', v ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+  }
   const [balance, setBalance] = useState(null)
   function refreshBalance(a) {
     if (!a) return
