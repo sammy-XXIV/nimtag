@@ -16,7 +16,7 @@
   --ok: #58d68d;
 
   --display: 'Space Grotesk', system-ui, sans-serif;
-  --serif: 'Fraunces', 'Times New Roman', Georgia, serif;
+  --serif: 'Bebas Neue', 'Space Grotesk', Impact, sans-serif; /* display: condensed caps */
   --mono: 'Space Mono', ui-monospace, Consolas, monospace;
   --logo: 'Orbitron', 'Space Grotesk', sans-serif;
 

@@ -13,6 +13,9 @@ export const api = {
   lookup: (tag) => fetch(`/api/tags/${encodeURIComponent(tag)}`).then(json),
   tagFor: (address) => fetch(`/api/address/${encodeURIComponent(address)}`).then(json),
   stats: () => fetch('/api/stats').then(json),
+  balance: (address) => fetch(`/api/balance/${encodeURIComponent(address)}`).then(json),
+  activity: (address) => fetch(`/api/activity/${encodeURIComponent(address)}`).then(json),
+  directory: () => fetch('/api/directory').then(json),
   claim: (body) =>
     fetch('/api/claim', {
       method: 'POST',

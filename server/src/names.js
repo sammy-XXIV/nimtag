@@ -42,15 +42,17 @@ function tagFor(address) {
 }
 
 // Claims `tag` for `address`. Returns { ok } or { error }. A tag someone
-// else holds is taken; re-claiming your own is a no-op; claiming a new tag
-// releases your old one.
+// else holds is taken. A wallet gets exactly one name, for good: once
+// claimed it can't be changed or released, so a name always means the same
+// wallet.
 function claim(tag, address) {
   const db = readAll()
   const holder = Object.hasOwn(db.byTag, tag) ? db.byTag[tag] : null
   if (holder && holder.address !== address) return { error: 'taken' }
-  const previous = Object.hasOwn(db.byAddress, address) ? db.byAddress[address] : null
-  if (previous && previous !== tag) delete db.byTag[previous]
-  db.byTag[tag] = { address, since: holder?.since || Date.now() }
+  const existing = Object.hasOwn(db.byAddress, address) ? db.byAddress[address] : null
+  if (existing && existing !== tag) return { error: 'already_named', tag: existing }
+  if (existing === tag) return { ok: true }
+  db.byTag[tag] = { address, since: Date.now() }
   db.byAddress[address] = tag
   writeAll(db)
   return { ok: true }
@@ -60,4 +62,12 @@ function count() {
   return Object.keys(readAll().byTag).length
 }
 
-module.exports = { normalise, validate, lookup, tagFor, claim, count }
+function recent(limit = 30) {
+  const db = readAll()
+  return Object.entries(db.byTag)
+    .map(([tag, e]) => ({ tag, address: e.address, since: e.since }))
+    .sort((a, b) => b.since - a.since)
+    .slice(0, limit)
+}
+
+module.exports = { normalise, validate, lookup, tagFor, claim, count, recent }

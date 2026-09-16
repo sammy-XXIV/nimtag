@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import Identicon from './Identicon'
 import { api, claimMessage } from './api'
-import { getAddress, insideNimiqPay, sendNim, shortAddress, signClaim } from './wallet'
+import { fmtNim, getAddress, insideNimiqPay, locale, sendNim, shortAddress, signClaim } from './wallet'
 
 const OPEN_LINK = `https://nimpay.app/miniapps/open/${window.location.host}`
 const SAMPLE_ADDRESS = 'NQ48 VUP6 42E2 X803 TQAU LX1V 1UJV LUBF RUX7'
@@ -44,12 +44,11 @@ function NameCard({ tag, address, link, onCopy, sub = 'NIMTAG · NAME' }) {
 
 // ---------- your tag: show it, or claim one ----------
 
-function ClaimCard({ address, tag, onClaimed }) {
+function ClaimCard({ address, onClaimed }) {
   const [input, setInput] = useState('')
   const [check, setCheck] = useState(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [copied, setCopied] = useState(false)
   const wanted = useDebounced(input.trim().replace(/^@/, '').toLowerCase(), 300)
 
   useEffect(() => {
@@ -77,36 +76,17 @@ function ClaimCard({ address, tag, onClaimed }) {
     }
   }
 
-  const link = tag ? `${window.location.origin}/@${tag}` : null
-
   return (
     <>
-      {tag ? (
-        <NameCard
-          tag={tag}
-          address={address}
-          link={link}
-          onCopy={() => {
-            navigator.clipboard?.writeText(link)
-            setCopied(true)
-            setTimeout(() => setCopied(false), 1500)
-          }}
-          sub={copied ? 'LINK COPIED' : 'YOUR NAME'}
-        />
-      ) : (
-        <div className="card">
-          <div className="me">
-            <Identicon address={address} size={52} />
-            <div className="me-text">
-              <span className="label">Your wallet</span>
-              <span className="addr">{shortAddress(address)}</span>
-            </div>
+      <section className="card">
+        <div className="me">
+          <Identicon address={address} size={44} />
+          <div className="me-text">
+            <span className="label">This wallet</span>
+            <span className="addr">{shortAddress(address)}</span>
           </div>
         </div>
-      )}
-
-      <section className="card">
-        <span className="label">{tag ? 'Change your name' : 'Claim your name'}</span>
+        <span className="label">Pick your name</span>
         <div className="field-row">
           <span className="at">@</span>
           <input
@@ -129,7 +109,7 @@ function ClaimCard({ address, tag, onClaimed }) {
         <button type="button" className="cta" disabled={!wanted || !check?.ok || busy} onClick={claim}>
           {busy ? 'Waiting for your signature…' : `Claim @${wanted || '…'}`}
         </button>
-        <p className="hint">Free. Your wallet signs a message to prove it's yours — nothing is sent.</p>
+        <p className="hint">Free, and permanent — one name per wallet, no changing it later. Your wallet signs a message to prove it's yours; nothing is sent.</p>
       </section>
     </>
   )
@@ -137,14 +117,18 @@ function ClaimCard({ address, tag, onClaimed }) {
 
 // ---------- send NIM to a tag ----------
 
-function SendCard({ myTag, initialTag = '' }) {
+function SendCard({ myTag, initialTag = '', initialAmount = '', balance, onSent }) {
   const [input, setInput] = useState(initialTag)
   const [target, setTarget] = useState(null)
-  const [amount, setAmount] = useState('')
+  const [amount, setAmount] = useState(initialAmount)
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(null)
   const [error, setError] = useState('')
   const wanted = useDebounced(input.trim().replace(/^@/, '').toLowerCase(), 300)
+
+  useEffect(() => {
+    setInput(initialTag)
+  }, [initialTag])
 
   useEffect(() => {
     if (!wanted) return setTarget(null)
@@ -159,7 +143,8 @@ function SendCard({ myTag, initialTag = '' }) {
   }, [wanted])
 
   const nim = parseFloat(amount)
-  const canSend = target?.address && nim > 0 && !busy
+  const short = balance != null && nim > balance
+  const canSend = target?.address && nim > 0 && !short && !busy
 
   async function send() {
     setBusy(true)
@@ -171,6 +156,7 @@ function SendCard({ myTag, initialTag = '' }) {
         memo: myTag ? `@${myTag} → @${target.tag}` : `→ @${target.tag}`,
       })
       setDone({ hash, tag: target.tag, nim })
+      onSent?.()
     } catch (e) {
       setError(e.type === 'PermissionDeniedError' ? 'Cancelled.' : e.message || 'Send failed.')
     } finally {
@@ -183,7 +169,7 @@ function SendCard({ myTag, initialTag = '' }) {
       <section className="card card--done">
         <span className="label">Sent</span>
         <p className="done-line">
-          {done.nim.toLocaleString()} NIM → <span className="tag">@{done.tag}</span>
+          {fmtNim(done.nim)} NIM → <span className="tag">@{done.tag}</span>
         </p>
         <span className="addr">tx {String(done.hash).slice(0, 14)}…</span>
         <button type="button" className="text-button" onClick={() => { setDone(null); setAmount(''); setInput('') }}>
@@ -231,10 +217,134 @@ function SendCard({ myTag, initialTag = '' }) {
         />
         <span className="unit">NIM</span>
       </div>
+      {balance != null && (
+        <p className={`check ${short ? 'check--bad' : ''}`}>
+          {short
+            ? `That's ${fmtNim(nim - balance)} NIM more than you have.`
+            : `Balance ${fmtNim(balance)} NIM`}
+        </p>
+      )}
       {error && <p className="check check--bad">{error}</p>}
       <button type="button" className="cta" disabled={!canSend} onClick={send}>
         {busy ? 'Confirm in Nimiq Pay…' : target?.tag ? `Send to @${target.tag}` : 'Send'}
       </button>
+    </section>
+  )
+}
+
+// ---------- people: who you've paid, by name ----------
+// The chain is the source (every send carries "@you → @them" as its memo),
+// but it's shown as people, not a ledger — Nimiq Pay already has the ledger.
+
+function timeAgo(ts) {
+  const s = Math.max(0, (Date.now() - ts) / 1000)
+  if (s < 60) return 'just now'
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  return new Date(ts).toLocaleDateString(locale(), { day: 'numeric', month: 'short' })
+}
+
+function People({ address, refreshKey, onPick }) {
+  const [items, setItems] = useState(null)
+  useEffect(() => {
+    let stopped = false
+    api.activity(address).then((a) => !stopped && setItems(a.items)).catch(() => !stopped && setItems([]))
+    return () => {
+      stopped = true
+    }
+  }, [address, refreshKey])
+
+  if (!items) return null
+  // Latest interaction per counterparty; named ones up top, unnamed folded.
+  const seen = new Map()
+  for (const t of items) if (!seen.has(t.address)) seen.set(t.address, t)
+  const named = [...seen.values()].filter((t) => t.tag)
+  const unnamed = seen.size - named.length
+  if (!named.length && !unnamed) return null
+
+  return (
+    <section className="card">
+      <span className="label">People</span>
+      {named.length > 0 && (
+        <ul className="feed">
+          {named.slice(0, 10).map((t) => (
+            <li className="feed-row" key={t.address}>
+              <Identicon address={t.address} size={36} />
+              <button type="button" className="feed-text" onClick={() => onPick(t.tag)}>
+                <span className="feed-line"><span className="tag">@{t.tag}</span></span>
+                <span className="feed-meta">
+                  {t.direction === 'in' ? 'sent you' : 'you sent'} {fmtNim(t.nim)} NIM · {timeAgo(t.at)}
+                </span>
+              </button>
+              <span className="feed-go" aria-hidden="true">&rarr;</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {unnamed > 0 && (
+        <p className="hint">
+          {named.length ? 'Plus ' : ''}{unnamed} {unnamed === 1 ? 'address' : 'addresses'} without a name yet — send them your link.
+        </p>
+      )}
+    </section>
+  )
+}
+
+// ---------- directory: who's here ----------
+
+function Directory({ me, onPick }) {
+  const [list, setList] = useState([])
+  useEffect(() => {
+    api.directory().then((d) => setList(d.names.filter((n) => n.tag !== me))).catch(() => {})
+  }, [me])
+  if (!list.length) return null
+  return (
+    <section className="card">
+      <span className="label">People on Nimtag</span>
+      <div className="chips">
+        {list.slice(0, 16).map((n) => (
+          <button type="button" className="chip" key={n.tag} onClick={() => onPick(n.tag)}>
+            <Identicon address={n.address} size={22} />
+            <span>@{n.tag}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ---------- request: a link that opens Send pre-filled ----------
+
+function RequestCard({ tag }) {
+  const [amount, setAmount] = useState('')
+  const [copied, setCopied] = useState(false)
+  const nim = parseFloat(amount)
+  const link = `${window.location.origin}/@${tag}${nim > 0 ? `?amount=${nim}` : ''}`
+  return (
+    <section className="card">
+      <span className="label">Request NIM</span>
+      <div className="field-row">
+        <input
+          className="field-input amount"
+          inputMode="decimal"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
+          placeholder="0"
+        />
+        <span className="unit">NIM</span>
+      </div>
+      <button
+        type="button"
+        className="cta"
+        onClick={() => {
+          navigator.clipboard?.writeText(link)
+          setCopied(true)
+          setTimeout(() => setCopied(false), 1500)
+        }}
+      >
+        {copied ? 'Link copied' : nim > 0 ? `Copy link for ${fmtNim(nim)} NIM` : 'Copy your link'}
+      </button>
+      <p className="hint">Paste it anywhere. It opens in Nimiq Pay with Send already filled in.</p>
     </section>
   )
 }
@@ -264,7 +374,7 @@ function Profile({ tag, inside, onSend }) {
         {inside ? (
           <button type="button" className="cta" onClick={() => onSend(entry.tag)}>Send NIM to @{entry.tag}</button>
         ) : (
-          <a className="cta" href={`${OPEN_LINK}/@${entry.tag}`}>Open in Nimiq Pay to send</a>
+          <a className="cta" href={`${OPEN_LINK}/@${entry.tag}${window.location.search}`}>Open in Nimiq Pay to send</a>
         )}
       </div>
     </>
@@ -279,20 +389,34 @@ function App() {
     const m = window.location.pathname.match(/^\/@([a-z0-9_]{3,20})$/i)
     return m ? { profile: m[1].toLowerCase() } : {}
   }, [])
-  const sendTo = useMemo(() => (new URLSearchParams(window.location.search).get('to') || '').toLowerCase(), [])
+  const params = useMemo(() => new URLSearchParams(window.location.search), [])
+  const [sendTo, setSendTo] = useState((params.get('to') || '').toLowerCase())
+  const sendAmount = params.get('amount') || ''
+  const [refreshKey, setRefreshKey] = useState(0)
   const [address, setAddress] = useState(null)
   const [myTag, setMyTag] = useState(null)
   const [stats, setStats] = useState(null)
+  const [copied, setCopied] = useState(false)
+  const [balance, setBalance] = useState(null)
+
+  // Refresh the balance whenever the wallet is known and after a send.
+  function refreshBalance(a) {
+    if (!a) return
+    api.balance(a).then((b) => setBalance(b.nim)).catch(() => {})
+  }
+
+  function copyLink() {
+    navigator.clipboard?.writeText(`${window.location.origin}/@${myTag}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
   useEffect(() => {
     api.stats().then(setStats).catch(() => {})
-    // ?preview renders the in-wallet screens with a sample address, for
-    // looking at the UI in a normal browser. Claiming/sending still needs the wallet.
-    const preview = new URLSearchParams(window.location.search).has('preview')
-    getAddress().then(async (found) => {
-      const a = found || (preview ? SAMPLE_ADDRESS : null)
+    getAddress().then(async (a) => {
       if (!a) return
       setAddress(a)
+      refreshBalance(a)
       try {
         const { tag } = await api.tagFor(a)
         setMyTag(tag)
@@ -317,24 +441,46 @@ function App() {
             <p className="eyebrow">Nimtag · @{route.profile}</p>
             <h1 className="hero">Send NIM to <span className="tag">@{route.profile}</span>.</h1>
           </div>
-          <Profile tag={route.profile} inside={inside && Boolean(address)} onSend={(t) => { window.location.href = `/?to=${t}` }} />
+          <Profile tag={route.profile} inside={inside && Boolean(address)} onSend={(t) => { window.location.href = `/?to=${t}${sendAmount ? `&amount=${sendAmount}` : ''}` }} />
         </>
       ) : (
         <>
           <div className="header">
-            <p className="eyebrow">Nimiq Pay mini app</p>
-            <h1 className="hero">
-              Send NIM to a <span className="tag">@name</span>,<br />not an address.
-            </h1>
-            <p className="subtitle">
-              Claim your name once. From then on, anyone with Nimiq Pay can pay you by typing it.
-            </p>
+            <p className="eyebrow">{address && myTag ? `Nimtag · @${myTag}` : 'Nimiq Pay mini app'}</p>
+            {address && myTag ? (
+              <h1 className="hero">Send NIM to a <span className="tag">@name</span>.</h1>
+            ) : (
+              <h1 className="hero">
+                Send NIM to a <span className="tag">@name</span>,<br />not an address.
+              </h1>
+            )}
+            {!myTag && (
+              <p className="subtitle">
+                {address
+                  ? 'First, claim yours. It takes ten seconds and costs nothing — your wallet just signs to prove it’s you.'
+                  : 'Claim your name once. From then on, anyone with Nimiq Pay can pay you by typing it.'}
+              </p>
+            )}
           </div>
 
-          {address ? (
+          {address && !myTag ? (
+            <ClaimCard address={address} onClaimed={setMyTag} />
+          ) : address ? (
             <>
-              <ClaimCard address={address} tag={myTag} onClaimed={setMyTag} />
-              <SendCard myTag={myTag} initialTag={sendTo} />
+              <NameCard tag={myTag} address={address} link={`${window.location.origin}/@${myTag}`} onCopy={copyLink} sub={copied ? 'LINK COPIED' : 'YOUR NAME'} />
+              <SendCard
+                myTag={myTag}
+                initialTag={sendTo}
+                initialAmount={sendAmount}
+                balance={balance}
+                onSent={() => {
+                  refreshBalance(address)
+                  setRefreshKey((k) => k + 1)
+                }}
+              />
+              <People address={address} refreshKey={refreshKey} onPick={setSendTo} />
+              <Directory me={myTag} onPick={setSendTo} />
+              <RequestCard tag={myTag} />
             </>
           ) : inside ? (
             <section className="card"><span className="label">Connecting to your wallet…</span></section>
