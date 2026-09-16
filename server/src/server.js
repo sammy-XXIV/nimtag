@@ -58,6 +58,23 @@ async function balanceNim(address) {
   return Number(account?.balance || 0) / 100000
 }
 
+// Nimiq Pay hands mini apps a receive address and keeps the spendable balance
+// on an internal account it tops up from there automatically. So the true
+// balance is the receive address plus wherever it forwards to — found from
+// the chain: an outgoing transfer that mirrors an incoming one shortly after.
+async function linkedAccount(address) {
+  const txs = await rpc('getTransactionsByAddress', [address, 30, null])
+  const list = (Array.isArray(txs) ? txs : []).slice().sort((a, b) => a.timestamp - b.timestamp)
+  let linked = null
+  for (let i = 1; i < list.length; i++) {
+    const prev = list[i - 1]
+    const t = list[i]
+    const sweep = t.from === address && prev.to === address && t.value === prev.value && t.timestamp - prev.timestamp < 30 * 60 * 1000
+    if (sweep) linked = t.to // latest one wins
+  }
+  return linked
+}
+
 app.use('/api/claim', rateLimit({ windowMs: 60000, max: 10 }))
 app.use('/api', rateLimit({ windowMs: 60000, max: 240 }))
 
@@ -120,7 +137,10 @@ app.post('/api/claim', async (req, res) => {
   if (!dev) {
     let nim
     try {
-      nim = await balanceNim(address)
+      // Receive address plus the account Nimiq Pay forwards it to — the
+      // receive address alone is ~0 minutes after anything lands on it.
+      const linked = await linkedAccount(address).catch(() => null)
+      nim = (await balanceNim(address)) + (linked ? await balanceNim(linked).catch(() => 0) : 0)
     } catch {
       return res.status(502).json({ error: 'chain_unavailable', message: 'Could not check the wallet right now — try again.' })
     }
@@ -187,23 +207,6 @@ app.get('/api/directory', (req, res) => {
 })
 
 // Live NIM balance from the Albatross RPC (public node by default).
-// Nimiq Pay hands mini apps a receive address and keeps the spendable balance
-// on an internal account it tops up from there automatically. So the true
-// balance is the receive address plus wherever it forwards to — found from
-// the chain: an outgoing transfer that mirrors an incoming one shortly after.
-async function linkedAccount(address) {
-  const txs = await rpc('getTransactionsByAddress', [address, 30, null])
-  const list = (Array.isArray(txs) ? txs : []).slice().sort((a, b) => a.timestamp - b.timestamp)
-  let linked = null
-  for (let i = 1; i < list.length; i++) {
-    const prev = list[i - 1]
-    const t = list[i]
-    const sweep = t.from === address && prev.to === address && t.value === prev.value && t.timestamp - prev.timestamp < 30 * 60 * 1000
-    if (sweep) linked = t.to // latest one wins
-  }
-  return linked
-}
-
 app.get('/api/balance/:address', async (req, res) => {
   if (!isAddress(req.params.address)) return res.status(400).json({ error: 'bad_address' })
   const address = canonical(req.params.address)
