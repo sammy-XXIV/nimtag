@@ -143,7 +143,7 @@ function ClaimCard({ address, onPickAccount, onClaimed }) {
 
 // ---------- send NIM to a tag ----------
 
-function SendCard({ myTag, initialTag = '', initialAmount = '', balance, onSent }) {
+function SendCard({ myTag, initialTag = '', initialAmount = '', onSent }) {
   const [input, setInput] = useState(initialTag)
   const [target, setTarget] = useState(null)
   const [amount, setAmount] = useState(initialAmount)
@@ -169,8 +169,10 @@ function SendCard({ myTag, initialTag = '', initialAmount = '', balance, onSent 
   }, [wanted])
 
   const nim = parseFloat(amount)
-  const short = balance != null && nim > balance
-  const canSend = target?.address && nim > 0 && !short && !busy
+  // No balance check here: Nimiq Pay gives mini apps a forwarding address
+  // (always ~0) and pays from the user's real account, whose balance its own
+  // approval sheet shows — and it refuses if the user is short.
+  const canSend = target?.address && nim > 0 && !busy
 
   async function send() {
     setBusy(true)
@@ -243,13 +245,6 @@ function SendCard({ myTag, initialTag = '', initialAmount = '', balance, onSent 
         />
         <span className="unit">NIM</span>
       </div>
-      {balance != null && (
-        <p className={`check ${short ? 'check--bad' : ''}`}>
-          {short
-            ? `That's ${fmtNim(nim - balance)} NIM more than you have.`
-            : `Balance ${fmtNim(balance)} NIM`}
-        </p>
-      )}
       {error && <p className="check check--bad">{error}</p>}
       <button type="button" className="cta" disabled={!canSend} onClick={send}>
         {busy ? 'Confirm in Nimiq Pay…' : target?.tag ? `Send to @${target.tag}` : 'Send'}
@@ -444,16 +439,10 @@ function App() {
   const [myTag, setMyTag] = useState(null)
   const [stats, setStats] = useState(null)
   const [copied, setCopied] = useState(false)
-  const [balance, setBalance] = useState(null)
   // First screen inside the wallet: what this is, then "Get started".
   // Once a name exists there's nothing to introduce, so it's skipped.
   const [started, setStarted] = useState(() => new URLSearchParams(window.location.search).has('to'))
 
-  // Refresh the balance whenever the wallet is known and after a send.
-  function refreshBalance(a) {
-    if (!a) return
-    api.balance(a).then((b) => setBalance(b.nim)).catch(() => {})
-  }
 
   function copyLink() {
     navigator.clipboard?.writeText(`${window.location.origin}/@${myTag}`)
@@ -488,7 +477,6 @@ function App() {
       }
       setAddress(chosen)
       setMyTag(found)
-      refreshBalance(chosen)
     })
   }, [])
 
@@ -544,10 +532,7 @@ function App() {
           ) : address && !myTag ? (
             <ClaimCard
               address={address}
-              onPickAccount={(a) => {
-                setAddress(a)
-                refreshBalance(a)
-              }}
+              onPickAccount={setAddress}
               onClaimed={setMyTag}
             />
           ) : address ? (
@@ -557,11 +542,7 @@ function App() {
                 myTag={myTag}
                 initialTag={sendTo}
                 initialAmount={sendAmount}
-                balance={balance}
-                onSent={() => {
-                  refreshBalance(address)
-                  setRefreshKey((k) => k + 1)
-                }}
+                onSent={() => setRefreshKey((k) => k + 1)}
               />
               <People address={address} refreshKey={refreshKey} onPick={setSendTo} />
               <Directory me={myTag} onPick={setSendTo} />
