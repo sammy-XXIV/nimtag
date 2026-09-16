@@ -563,3 +563,22 @@
 span.feed-text {
   cursor: default;
 }
+
+/* Links out to the explorer. */
+a.feed-nim {
+  text-decoration: none;
+}
+
+a.feed-nim span {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.txlink {
+  text-decoration: none;
+}
+
+.txlink span {
+  margin-left: 6px;
+  color: var(--gold);
+}

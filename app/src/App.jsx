@@ -6,6 +6,8 @@ import { fmtNim, getAddresses, insideNimiqPay, locale, sendNim, shortAddress, si
 
 const OPEN_LINK = `https://nimpay.app/miniapps/open/${window.location.host}`
 const SAMPLE_ADDRESS = 'NQ48 VUP6 42E2 X803 TQAU LX1V 1UJV LUBF RUX7'
+const EXPLORER = 'https://nimiq.watch/#'
+const explorerTx = (hash) => `${EXPLORER}${hash}`
 
 function useDebounced(value, ms) {
   const [v, setV] = useState(value)
@@ -203,7 +205,9 @@ function SendCard({ myTag, initialTag = '', initialAmount = '', balance, onSent 
         <p className="done-line">
           {fmtNim(done.nim)} NIM → <span className="tag">@{done.tag}</span>
         </p>
-        <span className="addr">tx {String(done.hash).slice(0, 14)}…</span>
+        <a className="addr txlink" href={explorerTx(done.hash)} target="_blank" rel="noreferrer">
+          tx {String(done.hash).slice(0, 14)}… <span>view on nimiq.watch &nearr;</span>
+        </a>
         <button type="button" className="text-button" onClick={() => { setDone(null); setAmount(''); setInput('') }}>
           Send another &rarr;
         </button>
@@ -342,9 +346,15 @@ function History({ address, refreshKey }) {
               </span>
               <span className="feed-meta">{timeAgo(t.at)} · {t.memo}</span>
             </span>
-            <span className={`feed-nim ${t.direction === 'in' ? 'feed-nim--in' : ''}`}>
-              {t.direction === 'in' ? '+' : '−'}{fmtNim(t.nim)}
-            </span>
+            <a
+              className={`feed-nim ${t.direction === 'in' ? 'feed-nim--in' : ''}`}
+              href={explorerTx(t.hash)}
+              target="_blank"
+              rel="noreferrer"
+              title="View on nimiq.watch"
+            >
+              {t.direction === 'in' ? '+' : '−'}{fmtNim(t.nim)} <span aria-hidden="true">&nearr;</span>
+            </a>
           </li>
         ))}
       </ul>
