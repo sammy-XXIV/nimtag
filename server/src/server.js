@@ -4,11 +4,23 @@ const names = require('./names')
 const { recoverAddress, isAddress, canonical } = require('./verify')
 
 const app = express()
-app.set('trust proxy', 1)
+// Behind Railway's edge the client is the leftmost X-Forwarded-For hop;
+// trusting only one hop made every request look like a different IP and the
+// limiter never fired.
+app.set('trust proxy', true)
 app.use(express.json({ limit: '16kb' }))
 
 const PORT = process.env.PORT || 3002
 const CLAIM_WINDOW_MS = 10 * 60 * 1000
+// A wallet must hold at least this much NIM to claim — every real Nimiq Pay
+// user does; a script generating free keypairs to squat names does not.
+const MIN_CLAIM_BALANCE_NIM = Number(process.env.MIN_CLAIM_BALANCE_NIM || 1)
+
+// The mock-wallet bypass must never run where real users are.
+if (process.env.DEV_MODE === 'true' && process.env.RAILWAY_ENVIRONMENT) {
+  console.error('DEV_MODE is set in a Railway environment — refusing to start')
+  process.exit(1)
+}
 
 // Small per-IP limiter: claims and lookups are cheap, but the registry is
 // public and shouldn't be scriptable at scale.
@@ -28,6 +40,24 @@ function rateLimit({ windowMs, max }) {
     return next()
   }
 }
+const RPC_URL = process.env.NIMIQ_RPC_URL || 'https://rpc.nimiqwatch.com'
+
+async function rpc(method, params) {
+  const r = await fetch(RPC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+  })
+  const json = await r.json()
+  if (json.error) throw new Error(json.error.message || 'rpc_error')
+  return json.result?.data ?? json.result
+}
+
+async function balanceNim(address) {
+  const account = await rpc('getAccountByAddress', [address])
+  return Number(account?.balance || 0) / 100000
+}
+
 app.use('/api/claim', rateLimit({ windowMs: 60000, max: 10 }))
 app.use('/api', rateLimit({ windowMs: 60000, max: 240 }))
 
@@ -60,7 +90,7 @@ app.get('/api/check/:tag', (req, res) => {
   res.json({ tag, ok: !names.lookup(tag), reason: names.lookup(tag) ? 'Already taken.' : null })
 })
 
-app.post('/api/claim', (req, res) => {
+app.post('/api/claim', async (req, res) => {
   const { tag: rawTag, address: rawAddress, at, publicKey, signature } = req.body || {}
   const tag = names.normalise(rawTag)
   const problem = names.validate(tag)
@@ -78,6 +108,20 @@ app.post('/api/claim', (req, res) => {
   if (!proven || proven !== address) {
     return res.status(401).json({ error: 'bad_signature', message: 'Signature does not match this wallet.' })
   }
+  if (!dev) {
+    let nim
+    try {
+      nim = await balanceNim(address)
+    } catch {
+      return res.status(502).json({ error: 'chain_unavailable', message: 'Could not check the wallet right now — try again.' })
+    }
+    if (nim < MIN_CLAIM_BALANCE_NIM) {
+      return res.status(403).json({
+        error: 'unfunded',
+        message: `This wallet needs at least ${MIN_CLAIM_BALANCE_NIM} NIM to claim a name.`,
+      })
+    }
+  }
   const result = names.claim(tag, address)
   if (result.error === 'taken') return res.status(409).json({ error: 'taken', message: 'Already taken.' })
   if (result.error === 'already_named') {
@@ -85,19 +129,6 @@ app.post('/api/claim', (req, res) => {
   }
   res.json({ ok: true, tag, address })
 })
-
-const RPC_URL = process.env.NIMIQ_RPC_URL || 'https://rpc.nimiqwatch.com'
-
-async function rpc(method, params) {
-  const r = await fetch(RPC_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
-  })
-  const json = await r.json()
-  if (json.error) throw new Error(json.error.message || 'rpc_error')
-  return json.result?.data ?? json.result
-}
 
 // Nimtag sends carry "@from → @to" as the transaction memo, so the chain
 // itself is the activity log: read the wallet's recent transactions, decode
@@ -133,6 +164,7 @@ app.get('/api/activity/:address', async (req, res) => {
       }
     })
     const value = { address, items }
+    if (activityCache.size > 500) activityCache.clear()
     activityCache.set(address, { at: Date.now(), value })
     res.json(value)
   } catch (err) {
@@ -150,11 +182,18 @@ app.get('/api/balance/:address', async (req, res) => {
   if (!isAddress(req.params.address)) return res.status(400).json({ error: 'bad_address' })
   const address = canonical(req.params.address)
   try {
-    const account = await rpc('getAccountByAddress', [address])
-    res.json({ address, nim: Number(account?.balance || 0) / 100000 })
+    res.json({ address, nim: await balanceNim(address) })
   } catch (err) {
     res.status(502).json({ error: 'balance_failed', message: err.message })
   }
+})
+
+// Takedown, guarded by ADMIN_TOKEN (unset = endpoint disabled).
+app.delete('/api/tags/:tag', (req, res) => {
+  const token = process.env.ADMIN_TOKEN
+  if (!token || req.get('x-admin-token') !== token) return res.status(404).json({ error: 'not_found' })
+  const tag = names.normalise(req.params.tag)
+  res.json({ removed: names.remove(tag), tag })
 })
 
 app.get('/api/stats', (req, res) => {

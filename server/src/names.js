@@ -8,9 +8,12 @@ const FILE = path.join(DATA_DIR, 'names.json')
 
 const RULES = /^[a-z][a-z0-9_]{2,19}$/
 const RESERVED = new Set([
-  'nimiq', 'nimiqpay', 'nimtag', 'admin', 'root', 'support', 'help', 'team', 'official',
-  'wallet', 'pay', 'nim', 'null', 'undefined', 'api', 'www', 'me', 'you', 'send', 'claim',
+  'root', 'help', 'team', 'wallet', 'pay', 'nim', 'null', 'undefined', 'api', 'www',
+  'me', 'you', 'send', 'claim', 'staff', 'mod',
 ])
+// Anything containing these reads as the project or its staff — impersonation
+// bait, so blocked as substrings, not just exact matches.
+const BLOCKED_PARTS = ['nimiq', 'nimtag', 'admin', 'official', 'support']
 
 function normalise(raw) {
   return String(raw || '').trim().replace(/^@/, '').toLowerCase()
@@ -19,6 +22,7 @@ function normalise(raw) {
 function validate(tag) {
   if (!RULES.test(tag)) return 'Use 3–20 characters: letters, numbers, underscores; start with a letter.'
   if (RESERVED.has(tag)) return 'That one is reserved.'
+  if (BLOCKED_PARTS.some((part) => tag.includes(part))) return 'That one is reserved.'
   return null
 }
 
@@ -27,8 +31,12 @@ function readAll() {
   return JSON.parse(fs.readFileSync(FILE, 'utf8'))
 }
 
+// Write-then-rename so a crash mid-write can't leave a half-written registry,
+// and two claims landing together can't interleave bytes.
 function writeAll(db) {
-  fs.writeFileSync(FILE, JSON.stringify(db, null, 2))
+  const tmp = `${FILE}.${process.pid}.${Date.now()}.tmp`
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2))
+  fs.renameSync(tmp, FILE)
 }
 
 function lookup(tag) {
@@ -58,6 +66,17 @@ function claim(tag, address) {
   return { ok: true }
 }
 
+// Admin takedown (impersonation, abuse). Frees the name and the wallet.
+function remove(tag) {
+  const db = readAll()
+  if (!Object.hasOwn(db.byTag, tag)) return false
+  const { address } = db.byTag[tag]
+  delete db.byTag[tag]
+  if (db.byAddress[address] === tag) delete db.byAddress[address]
+  writeAll(db)
+  return true
+}
+
 function count() {
   return Object.keys(readAll().byTag).length
 }
@@ -70,4 +89,4 @@ function recent(limit = 30) {
     .slice(0, limit)
 }
 
-module.exports = { normalise, validate, lookup, tagFor, claim, count, recent }
+module.exports = { normalise, validate, lookup, tagFor, claim, remove, count, recent }
