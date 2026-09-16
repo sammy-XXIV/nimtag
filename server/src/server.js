@@ -209,6 +209,11 @@ app.get('/api/activity/:address', async (req, res) => {
     const sentTo = new Set(all.filter((t) => mine.has(t.from) && !decodeMemo(t.recipientData)).map((t) => t.to))
     const gotFrom = new Set(all.filter((t) => mine.has(t.to) && !decodeMemo(t.recipientData)).map((t) => t.from))
     const internal = new Set([...mine, ...[...sentTo].filter((a) => gotFrom.has(a))])
+    // Sends often leave from those internal addresses — read them too.
+    const extra = [...internal].filter((a) => !mine.has(a))
+    const more = await Promise.all(extra.map((a) => rpc('getTransactionsByAddress', [a, 40, null]).catch(() => [])))
+    for (const t of more.flat()) if (t && !seen.has(t.hash) && seen.add(t.hash)) all.push(t)
+    for (const a of extra) mine.add(a)
     const items = all
       .filter((t) => !(internal.has(t.from) && internal.has(t.to)))
       .map((t) => {
