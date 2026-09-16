@@ -215,6 +215,14 @@
   color: #5b5a55;
 }
 
+.namecard-balance {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  color: var(--paper-ink);
+}
+
 .namecard-copy {
   font: inherit;
   font-weight: 700;

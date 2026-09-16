@@ -187,11 +187,30 @@ app.get('/api/directory', (req, res) => {
 })
 
 // Live NIM balance from the Albatross RPC (public node by default).
+// Nimiq Pay hands mini apps a receive address and keeps the spendable balance
+// on an internal account it tops up from there automatically. So the true
+// balance is the receive address plus wherever it forwards to — found from
+// the chain: an outgoing transfer that mirrors an incoming one shortly after.
+async function linkedAccount(address) {
+  const txs = await rpc('getTransactionsByAddress', [address, 30, null])
+  const list = (Array.isArray(txs) ? txs : []).slice().sort((a, b) => a.timestamp - b.timestamp)
+  let linked = null
+  for (let i = 1; i < list.length; i++) {
+    const prev = list[i - 1]
+    const t = list[i]
+    const sweep = t.from === address && prev.to === address && t.value === prev.value && t.timestamp - prev.timestamp < 30 * 60 * 1000
+    if (sweep) linked = t.to // latest one wins
+  }
+  return linked
+}
+
 app.get('/api/balance/:address', async (req, res) => {
   if (!isAddress(req.params.address)) return res.status(400).json({ error: 'bad_address' })
   const address = canonical(req.params.address)
   try {
-    res.json({ address, nim: await balanceNim(address) })
+    const [own, linked] = await Promise.all([balanceNim(address), linkedAccount(address).catch(() => null)])
+    const linkedNim = linked ? await balanceNim(linked).catch(() => 0) : 0
+    res.json({ address, nim: own + linkedNim, own, linked, linkedNim })
   } catch (err) {
     res.status(502).json({ error: 'balance_failed', message: err.message })
   }

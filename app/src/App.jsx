@@ -18,7 +18,7 @@ function useDebounced(value, ms) {
 
 // The printed pass for a name: identicon, @tag, address. Cream paper — the
 // "real thing" side of the design, same as Kindo's receipts.
-function NameCard({ tag, address, link, onCopy, sub = 'NIMTAG · NAME' }) {
+function NameCard({ tag, address, link, onCopy, sub = 'NIMTAG · NAME', balance }) {
   return (
     <div className="namecard">
       <div className="namecard-top">
@@ -32,10 +32,14 @@ function NameCard({ tag, address, link, onCopy, sub = 'NIMTAG · NAME' }) {
           <span className="namecard-addr">{address}</span>
         </div>
       </div>
-      {link && (
+      {(link || balance != null) && (
         <div className="namecard-foot">
-          <span>{link.replace(/^https?:\/\//, '')}</span>
-          <button type="button" className="namecard-copy" onClick={onCopy}>copy</button>
+          {balance != null ? (
+            <span className="namecard-balance">{fmtNim(balance)} NIM</span>
+          ) : (
+            <span>{link.replace(/^https?:\/\//, '')}</span>
+          )}
+          {link && <button type="button" className="namecard-copy" onClick={onCopy}>copy link</button>}
         </div>
       )}
     </div>
@@ -143,7 +147,7 @@ function ClaimCard({ address, onPickAccount, onClaimed }) {
 
 // ---------- send NIM to a tag ----------
 
-function SendCard({ myTag, initialTag = '', initialAmount = '', onSent }) {
+function SendCard({ myTag, initialTag = '', initialAmount = '', balance, onSent }) {
   const [input, setInput] = useState(initialTag)
   const [target, setTarget] = useState(null)
   const [amount, setAmount] = useState(initialAmount)
@@ -245,6 +249,7 @@ function SendCard({ myTag, initialTag = '', initialAmount = '', onSent }) {
         />
         <span className="unit">NIM</span>
       </div>
+      {balance != null && <p className="check">Balance {fmtNim(balance)} NIM</p>}
       {error && <p className="check check--bad">{error}</p>}
       <button type="button" className="cta" disabled={!canSend} onClick={send}>
         {busy ? 'Confirm in Nimiq Pay…' : target?.tag ? `Send to @${target.tag}` : 'Send'}
@@ -442,7 +447,11 @@ function App() {
   // First screen inside the wallet: what this is, then "Get started".
   // Once a name exists there's nothing to introduce, so it's skipped.
   const [started, setStarted] = useState(() => new URLSearchParams(window.location.search).has('to'))
-
+  const [balance, setBalance] = useState(null)
+  function refreshBalance(a) {
+    if (!a) return
+    api.balance(a).then((b) => setBalance(b.nim)).catch(() => {})
+  }
 
   function copyLink() {
     navigator.clipboard?.writeText(`${window.location.origin}/@${myTag}`)
@@ -477,6 +486,7 @@ function App() {
       }
       setAddress(chosen)
       setMyTag(found)
+      refreshBalance(chosen)
     })
   }, [])
 
@@ -537,12 +547,16 @@ function App() {
             />
           ) : address ? (
             <>
-              <NameCard tag={myTag} address={address} link={`${window.location.origin}/@${myTag}`} onCopy={copyLink} sub={copied ? 'LINK COPIED' : 'YOUR NAME'} />
+              <NameCard tag={myTag} address={address} link={`${window.location.origin}/@${myTag}`} onCopy={copyLink} sub={copied ? 'LINK COPIED' : 'YOUR NAME'} balance={balance} />
               <SendCard
                 myTag={myTag}
                 initialTag={sendTo}
                 initialAmount={sendAmount}
-                onSent={() => setRefreshKey((k) => k + 1)}
+                balance={balance}
+                onSent={() => {
+                  setRefreshKey((k) => k + 1)
+                  setTimeout(() => refreshBalance(address), 4000)
+                }}
               />
               <People address={address} refreshKey={refreshKey} onPick={setSendTo} />
               <Directory me={myTag} onPick={setSendTo} />
